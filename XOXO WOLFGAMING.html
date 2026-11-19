@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XO</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#f5cba7;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui;flex-direction:column}
+#menu{background:#fff;border-radius:20px;padding:24px;width:90vw;max-width:360px;text-align:center;box-shadow:0 10px 30px #0002}
+#menu h1{font-size:32px} 
+.btn{width:100%;padding:14px;margin:6px 0;border-radius:12px;border:0;font-weight:900;cursor:pointer}
+.btn1{background:#2c1810;color:#fff} 
+.btn2{background:#f5cba7;color:#2c1810;border:1px solid #2c1810}
+.lv{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap} 
+.lv button{flex:1;min-width:70px;padding:10px;border-radius:10px;border:1px solid #ccc;background:#fff;font-weight:bold;cursor:pointer}
+.lv button.on{background:#2c1810;color:#fff}
+
+#game{display:none;flex-direction:column;align-items:center}
+#board-wrap{
+  width:92vw;max-width:420px;aspect-ratio:1/1;
+  background:#e9c7a3;
+  border-radius:24px;
+  padding:18px;
+  box-shadow:0 20px 40px #0003, inset 0 0 0 8px #d9b896;
+}
+#board{
+  width:100%;height:100%;
+  background:#f5e6c8;
+  border-radius:16px;
+  display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+  gap:0;
+  overflow:hidden;
+  border:4px solid #2c1810;
+}
+.cell{
+  background:#f5e6c8;
+  border:3px solid #2c1810;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;position:relative;
+}
+
+/* --- تصليح الـ X --- */
+.x-piece{
+  width:68%;height:68%;position:relative;
+  display:flex;align-items:center;justify-content:center;
+  animation: pop .2s ease-out;
+}
+.x-line{
+  position:absolute;
+  width:100%;
+  height:20%;
+  background:#2c1810;
+  border-radius:8px;
+}
+.x-line.l1{transform:rotate(45deg)}
+.x-line.l2{transform:rotate(-45deg)}
+
+/* --- تصليح الـ O --- */
+.o-piece{
+  width:60%;height:60%;border-radius:50%;
+  border:16px solid #fff;
+  background:transparent;
+  box-shadow:0 4px 0 #ddd;
+  animation: pop .2s ease-out;
+  position:relative;
+}
+.o-piece::after{
+  content:'';position:absolute;inset:-2px;border-radius:50%;
+  border:3px solid #f0f0f0;
+}
+
+@keyframes pop{
+  0%{transform:scale(0)} 100%{transform:scale(1)}
+}
+
+.cell.win{background:#22c55e33}
+.cell.win .x-line{background:#22c55e}
+.cell.win .o-piece{border-color:#22c55e}
+
+#info{margin-top:18px;background:#2c1810;color:#fff;padding:12px 22px;border-radius:999px;font-weight:bold}
+#score{display:flex;gap:10px;margin-top:12px}
+#score div{background:#fff;padding:8px 16px;border-radius:999px;font-weight:bold;box-shadow:0 2px 10px #0001}
+#ctrl{margin-top:10px;display:flex;gap:8px}
+#ctrl button{background:#2c1810;color:#fff;border:0;padding:10px 18px;border-radius:999px;font-weight:bold;cursor:pointer}
+</style>
+</head>
+<body>
+
+<div id="menu">
+<h1>⭕❌ XO</h1>
+<p style="color:#888;margin:8px 0 16px">اختار طريقة اللعب</p>
+<button class="btn btn1" onclick="start('pvp')">👥 ضد صديق</button>
+<button class="btn btn2" onclick="document.getElementById('lvBox').style.display='block'">🤖 ضد كمبيوتر</button>
+<div id="lvBox" style="display:none">
+<div class="lv">
+<button id="l1" onclick="lv=1;setLv()">سهل</button>
+<button id="l2" class="on" onclick="lv=2;setLv()">متوسط</button>
+<button id="l3" onclick="lv=3;setLv()">صعب</button>
+<button id="l4" onclick="lv=4;setLv()">💀 مستحيل</button>
+</div>
+<button class="btn btn1" style="margin-top:8px;background:#22c55e;color:#000" onclick="start('cpu')">ابدأ ▶</button>
+</div>
+</div>
+
+<div id="game">
+<div id="board-wrap"><div id="board"></div></div>
+<div id="info">دور X</div>
+<div id="score">
+<div>❌ <span id="sx">0</span></div>
+<div>🤝 <span id="sd">0</span></div>
+<div>⭕ <span id="so">0</span></div>
+</div>
+<div id="ctrl">
+<button onclick="location.reload()">الصفحه الرئيسيه</button>
+<button onclick="resetG()">لعب من جديد</button>
+</div>
+</div>
+
+<script>
+let B=Array(9).fill(''),T='X',mode='pvp',lv=2,over=false,sc={X:0,O:0,D:0};
+const wins=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+
+function setLv(){document.querySelectorAll('.lv button').forEach(b=>b.classList.remove('on'));document.getElementById('l'+lv).classList.add('on');}
+function start(m){mode=m;document.getElementById('menu').style.display='none';document.getElementById('game').style.display='flex';resetG();}
+
+function draw(){
+ let el=document.getElementById('board');el.innerHTML='';
+ B.forEach((v,i)=>{
+  let c=document.createElement('div');c.className='cell';c.onclick=()=>click(i);
+  if(v){
+    if(v=='X'){
+      let p=document.createElement('div');p.className='x-piece';
+      p.innerHTML='<div class="x-line l1"></div><div class="x-line l2"></div>';
+      c.appendChild(p);
+    } else {
+      let p=document.createElement('div');p.className='o-piece';c.appendChild(p);
+    }
+  }
+  el.appendChild(c);
+ });
+ document.getElementById('sx').textContent=sc.X;
+ document.getElementById('so').textContent=sc.O;
+ document.getElementById('sd').textContent=sc.D;
+ if(!over) document.getElementById('info').textContent=`دور ${T}`;
+}
+
+function check(b=B){
+ for(let w of wins)if(b[w[0]]&&b[w[0]]==b[w[1]]&&b[w[1]]==b[w[2]])return{win:b[w[0]],line:w};
+ if(b.every(x=>x))return{draw:true};
+ return null;
+}
+function click(i){
+ if(over||B[i])return;
+ if(mode=='cpu'&&T=='O')return;
+ move(i);
+}
+function move(i){
+ B[i]=T;
+ let r=check();
+ if(r){
+  over=true;
+  if(r.win){
+   sc[r.win]++; document.getElementById('info').textContent=`${r.win} كسب! 🎉`;
+   setTimeout(()=>{r.line.forEach(idx=>document.getElementById('board').children[idx].classList.add('win'));},100);
+  }else{sc.D++; document.getElementById('info').textContent='تعادل 🤝';}
+  draw();return;
+ }
+ T=T=='X'?'O':'X';draw();
+ if(mode=='cpu'&&T=='O')setTimeout(cpu,300);
+}
+
+function cpu(){
+ let m;
+ if(lv==1) m=rand();
+ else if(lv==2) m=medium();
+ else if(lv==3) m=hard(3);
+ else m=hard(9);
+ if(m!=null)move(m);
+}
+function rand(){let a=B.map((v,i)=>v?'':i).filter(v=>v!=='');return a[Math.floor(Math.random()*a.length)];}
+function medium(){
+ for(let i=0;i<9;i++)if(!B[i]){B[i]='O';if(check()?.win=='O'){B[i]='';return i;}B[i]='';}
+ for(let i=0;i<9;i++)if(!B[i]){B[i]='X';if(check()?.win=='X'){B[i]='';return i;}B[i]='';}
+ return rand();
+}
+function hard(depth){
+ let best=-Infinity,bm=null;
+ for(let i=0;i<9;i++)if(!B[i]){
+  B[i]='O';let s=minimax(B,depth,false);B[i]='';if(s>best){best=s;bm=i;}
+ }
+ return bm??rand();
+}
+function minimax(b,d,max){
+ let r=check(b); if(r?.win=='O')return 10+d; if(r?.win=='X')return -10-d; if(r?.draw||d==0)return 0;
+ if(max){let best=-Infinity;for(let i=0;i<9;i++)if(!b[i]){b[i]='O';best=Math.max(best,minimax(b,d-1,false));b[i]='';}return best;}
+ else{let best=Infinity;for(let i=0;i<9;i++)if(!b[i]){b[i]='X';best=Math.min(best,minimax(b,d-1,true));b[i]='';}return best;}
+}
+function resetG(){B=Array(9).fill('');T='X';over=false;document.getElementById('info').textContent='دور X';draw();}
+draw();
+</script>
+</body>
+</html>
